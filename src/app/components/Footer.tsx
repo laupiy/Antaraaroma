@@ -1,4 +1,5 @@
-import { MessageCircle, Mail, Phone, MapPin, Instagram, ExternalLink } from "lucide-react";
+import { MessageCircle, Mail, Phone, MapPin, Instagram } from "lucide-react";
+import { Link } from "react-router";
 
 export function Footer() {
   const year = new Date().getFullYear();
@@ -28,19 +29,27 @@ export function Footer() {
         background: "linear-gradient(180deg, #0a0a0a 0%, #111827 100%)",
       }}
     >
-      {/* Main footer */}
       <div className="max-w-7xl mx-auto px-6 lg:px-8 pt-16 pb-10">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-10">
-          {/* Brand */}
           <div className="lg:col-span-1">
-            {/* Logo */}
             <div className="flex items-center gap-3 mb-5">
               <div className="w-10 h-10 rounded-xl bg-[#27C7C3] flex items-center justify-center">
-                <svg width="22" height="22" viewBox="0 0 22 22" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M11 2C7.5 2 5 5 5 8.5C5 13 11 20 11 20C11 20 17 13 17 8.5C17 5 14.5 2 11 2Z" fill="white" fillOpacity="0.9"/>
-                  <circle cx="11" cy="8.5" r="2.5" fill="white" fillOpacity="0.6"/>
+                <svg
+                  width="22"
+                  height="22"
+                  viewBox="0 0 22 22"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  <path
+                    d="M11 2C7.5 2 5 5 5 8.5C5 13 11 20 11 20C11 20 17 13 17 8.5C17 5 14.5 2 11 2Z"
+                    fill="white"
+                    fillOpacity="0.9"
+                  />
+                  <circle cx="11" cy="8.5" r="2.5" fill="white" fillOpacity="0.6" />
                 </svg>
               </div>
+
               <div>
                 <span
                   className="block text-lg text-white"
@@ -65,34 +74,37 @@ export function Footer() {
               Mendukung merek kecantikan sejak 2014.
             </p>
 
-            {/* Social */}
             <div className="flex gap-3">
               <a
                 href="https://instagram.com"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-[#27C7C3] hover:border-[#27C7C3] hover:text-white transition-all"
+                aria-label="Instagram Antara Aroma"
               >
                 <Instagram size={15} />
               </a>
+
               <a
                 href="https://wa.me/6281234567890"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-[#25D366] hover:border-[#25D366] hover:text-white transition-all"
+                aria-label="WhatsApp Antara Aroma"
               >
                 <MessageCircle size={15} />
               </a>
+
               <a
                 href="mailto:info@antaraaroma.com"
                 className="w-9 h-9 rounded-xl bg-white/5 border border-white/10 flex items-center justify-center text-gray-400 hover:bg-[#27C7C3] hover:border-[#27C7C3] hover:text-white transition-all"
+                aria-label="Email Antara Aroma"
               >
                 <Mail size={15} />
               </a>
             </div>
           </div>
 
-          {/* Quick Links */}
           <div>
             <h4
               className="text-white text-sm font-semibold mb-5 uppercase tracking-wider"
@@ -100,6 +112,7 @@ export function Footer() {
             >
               Tautan Cepat
             </h4>
+
             <ul className="flex flex-col gap-3">
               {quickLinks.map((link) => (
                 <li key={link.label}>
@@ -115,7 +128,6 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Products */}
           <div>
             <h4
               className="text-white text-sm font-semibold mb-5 uppercase tracking-wider"
@@ -123,22 +135,22 @@ export function Footer() {
             >
               Produk
             </h4>
+
             <ul className="flex flex-col gap-3">
-              {products.map((p) => (
-                <li key={p}>
+              {products.map((product) => (
+                <li key={product}>
                   <a
                     href="#products"
                     className="text-gray-400 text-sm hover:text-[#27C7C3] transition-colors"
                     style={{ fontFamily: "Poppins, sans-serif" }}
                   >
-                    {p}
+                    {product}
                   </a>
                 </li>
               ))}
             </ul>
           </div>
 
-          {/* Contact */}
           <div>
             <h4
               className="text-white text-sm font-semibold mb-5 uppercase tracking-wider"
@@ -146,6 +158,7 @@ export function Footer() {
             >
               Informasi Kontak
             </h4>
+
             <div className="flex flex-col gap-4">
               <div className="flex items-start gap-3">
                 <MapPin size={15} className="text-[#27C7C3] mt-0.5 shrink-0" />
@@ -156,6 +169,7 @@ export function Footer() {
                   Jl. Industri Raya No. 45, Tangerang, Banten 15820, Indonesia
                 </span>
               </div>
+
               <div className="flex items-center gap-3">
                 <Phone size={15} className="text-[#27C7C3] shrink-0" />
                 <span
@@ -165,6 +179,7 @@ export function Footer() {
                   +62 812-3456-7890
                 </span>
               </div>
+
               <div className="flex items-center gap-3">
                 <Mail size={15} className="text-[#27C7C3] shrink-0" />
                 <span
@@ -176,13 +191,12 @@ export function Footer() {
               </div>
             </div>
 
-            {/* NIB */}
             <div className="mt-5 p-3 rounded-xl bg-white/5 border border-white/10">
               <p
                 className="text-gray-500 text-xs mb-1"
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
-                NIB (Business Registration)
+                NIB
               </p>
               <p
                 className="text-gray-300 text-sm font-semibold tracking-wider"
@@ -194,29 +208,39 @@ export function Footer() {
           </div>
         </div>
 
-        {/* Divider */}
         <div className="mt-12 pt-6 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-4">
           <p
             className="text-gray-500 text-xs text-center sm:text-left"
             style={{ fontFamily: "Poppins, sans-serif" }}
           >
-            © {year} ANTARA AROMA. Seluruh hak dilindungi. Pemasok Kemasan Kosmetik Premium.
+            © {year} ANTARA AROMA. Seluruh hak dilindungi. Pemasok Kemasan Kosmetik
+            Premium.
           </p>
+
           <div className="flex items-center gap-4">
             <a
               href="#"
               className="text-gray-500 text-xs hover:text-[#27C7C3] transition-colors"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
-              Privacy Policy
+              Kebijakan Privasi
             </a>
+
             <a
               href="#"
               className="text-gray-500 text-xs hover:text-[#27C7C3] transition-colors"
               style={{ fontFamily: "Poppins, sans-serif" }}
             >
-              Terms of Service
+              Syarat Layanan
             </a>
+
+            <Link
+              to="/admin/login"
+              className="text-gray-500 text-xs hover:text-[#27C7C3] transition-colors"
+              style={{ fontFamily: "Poppins, sans-serif" }}
+            >
+              Admin
+            </Link>
           </div>
         </div>
       </div>
