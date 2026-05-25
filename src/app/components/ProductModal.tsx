@@ -62,11 +62,23 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
   );
 
   const [approvedReviews, setApprovedReviews] = useState<Review[]>([]);
-  useEffect(() => { setApprovedReviews(getApprovedReviewsByProductId(product.id)); }, [product.id]);
 
+  function loadReviews() {
+    setApprovedReviews(getApprovedReviewsByProductId(product.id));
+  }
+
+  useEffect(() => {
+    loadReviews();
+    // Refresh otomatis saat review disetujui atau dihapus dari admin
+    window.addEventListener("reviewsUpdated", loadReviews);
+    return () => window.removeEventListener("reviewsUpdated", loadReviews);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [product.id]);
+
+  // Rating dihitung murni dari review approved — tidak memakai angka statis produk
   const ratingSummary = approvedReviews.length > 0
     ? { rating: Math.round((approvedReviews.reduce((s, r) => s + r.rating, 0) / approvedReviews.length) * 10) / 10, reviewCount: approvedReviews.length }
-    : { rating: product.rating, reviewCount: product.reviewCount };
+    : { rating: 0, reviewCount: 0 };
 
   const [reviewName, setReviewName] = useState("");
   const [reviewRating, setReviewRating] = useState(0);

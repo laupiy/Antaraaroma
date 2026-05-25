@@ -181,10 +181,12 @@ export function AdminDashboardPage() {
 
   function handleApproveReview(id:number) {
     approveReview(id); refreshReviews();
+    window.dispatchEvent(new Event("reviewsUpdated"));
     toast("success","Ulasan berhasil disetujui dan akan tampil di katalog.");
   }
   function handleDeleteReview(id:number) {
     deleteReview(id); refreshReviews(); setDeleteReviewConfirm(null);
+    window.dispatchEvent(new Event("reviewsUpdated"));
     toast("success","Ulasan berhasil dihapus.");
   }
 

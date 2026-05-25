@@ -18,14 +18,15 @@ const SORT_OPTIONS: {value:SortKey;label:string}[] = [
   {value:"rating",label:"Rating Tertinggi"},{value:"name-asc",label:"Nama A–Z"},{value:"name-desc",label:"Nama Z–A"},
 ];
 
-// ── Compute rating map from approved reviews ──────────────────────────────────
+// ── Compute rating map dari review approved saja (tidak pakai data statis produk) ──
 function buildRatingMap(products: Product[], reviews: Review[]): Record<number,{rating:number;reviewCount:number}> {
   const map: Record<number,{rating:number;reviewCount:number}> = {};
   const approved = reviews.filter((r) => r.status === "approved");
   products.forEach((p) => {
     const pReviews = approved.filter((r) => r.productId === p.id);
     if (pReviews.length === 0) {
-      map[p.id] = { rating: p.rating, reviewCount: 0 };
+      // Tidak ada review approved → tampilkan fallback 0 agar komponen bisa render "Belum ada ulasan"
+      map[p.id] = { rating: 0, reviewCount: 0 };
     } else {
       const avg = pReviews.reduce((s, r) => s + r.rating, 0) / pReviews.length;
       map[p.id] = { rating: Math.round(avg * 10) / 10, reviewCount: pReviews.length };
@@ -41,6 +42,14 @@ export function CatalogPage() {
   useEffect(() => {
     setAllProducts(getProducts());
     setAllReviews(getReviews());
+
+    // Refresh otomatis saat review ditambah, disetujui, atau dihapus
+    function onReviewsUpdated() {
+      setAllProducts(getProducts());
+      setAllReviews(getReviews());
+    }
+    window.addEventListener("reviewsUpdated", onReviewsUpdated);
+    return () => window.removeEventListener("reviewsUpdated", onReviewsUpdated);
   }, []);
 
   // Computed rating map (rating otomatis dari review approved)
@@ -343,7 +352,7 @@ function ProductCard({ product, ratingSummary, onSelect }: {
   ratingSummary?: {rating:number;reviewCount:number};
   onSelect: () => void;
 }) {
-  const rating = ratingSummary?.rating ?? product.rating;
+  const rating = ratingSummary?.rating ?? 0;
   const reviewCount = ratingSummary?.reviewCount ?? 0;
 
   return (
@@ -386,7 +395,7 @@ function ProductListCard({ product, ratingSummary, onSelect }: {
   ratingSummary?: {rating:number;reviewCount:number};
   onSelect: () => void;
 }) {
-  const rating = ratingSummary?.rating ?? product.rating;
+  const rating = ratingSummary?.rating ?? 0;
   const reviewCount = ratingSummary?.reviewCount ?? 0;
 
   return (

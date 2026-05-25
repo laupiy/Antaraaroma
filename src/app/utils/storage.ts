@@ -48,8 +48,11 @@ export interface Review {
   dateAdded: string;
 }
 
-function _saveReviews(reviews: Review[]): void {
+/** Simpan semua review ke localStorage dan broadcast event agar komponen ikut refresh. */
+export function saveReviews(reviews: Review[]): void {
   localStorage.setItem(STORAGE_KEYS.REVIEWS, JSON.stringify(reviews));
+  // Broadcast ke seluruh komponen yang mendengarkan (CatalogPage, ProductModal, dsb.)
+  window.dispatchEvent(new Event("reviewsUpdated"));
 }
 
 export function getReviews(): Review[] {
@@ -65,29 +68,33 @@ export function addReview(review: Omit<Review, "id">): Review {
   const reviews = getReviews();
   const maxId = reviews.reduce((max, r) => Math.max(max, r.id), 0);
   const newReview: Review = { ...review, id: maxId + 1 };
-  _saveReviews([...reviews, newReview]);
+  saveReviews([...reviews, newReview]);
   return newReview;
 }
 
 export function approveReview(id: number): void {
   const reviews = getReviews();
-  _saveReviews(reviews.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)));
+  saveReviews(reviews.map((r) => (r.id === id ? { ...r, status: "approved" as const } : r)));
 }
 
 export function deleteReview(id: number): void {
-  _saveReviews(getReviews().filter((r) => r.id !== id));
+  saveReviews(getReviews().filter((r) => r.id !== id));
 }
 
 export function getApprovedReviewsByProductId(productId: number): Review[] {
   return getReviews().filter((r) => r.productId === productId && r.status === "approved");
 }
 
+/**
+ * Hitung rating rata-rata dan jumlah ulasan dari review approved.
+ * Jika belum ada review approved, kembalikan { rating: 0, reviewCount: 0 }
+ * sehingga komponen bisa menampilkan "Belum ada ulasan" tanpa angka statis.
+ */
 export function getProductRatingSummary(
-  productId: number,
-  defaultRating: number
+  productId: number
 ): { rating: number; reviewCount: number } {
   const approved = getApprovedReviewsByProductId(productId);
-  if (approved.length === 0) return { rating: defaultRating, reviewCount: 0 };
+  if (approved.length === 0) return { rating: 0, reviewCount: 0 };
   const avg = approved.reduce((sum, r) => sum + r.rating, 0) / approved.length;
   return { rating: Math.round(avg * 10) / 10, reviewCount: approved.length };
 }
