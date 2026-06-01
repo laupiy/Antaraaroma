@@ -1,21 +1,14 @@
-// ──────────────────────────────────────────────────────────────────────────────
-// DistributionArea.tsx
-// Peta distribusi interaktif menggunakan React Leaflet + OpenStreetMap
-//
-// Dependency yang harus diinstall:
-//   npm install leaflet react-leaflet
-//   npm install -D @types/leaflet
-// ──────────────────────────────────────────────────────────────────────────────
+// src/app/components/DistributionArea.tsx
+// Peta distribusi interaktif — data dari GET /api/distribution
 
 import { useState, useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { MapPin, Package, CheckCircle2, ChevronRight, Navigation2 } from "lucide-react";
+import { MapPin, CheckCircle2, ChevronRight, Navigation2 } from "lucide-react";
+import { apiGetDistribution, type ApiDistribution } from "../utils/api";
 
-// ─── Fix: Leaflet default icon URL di Vite (tanpa webpack file-loader) ───────
-// Leaflet mencari asset marker melalui _getIconUrl() yang rusak di bundler modern.
-// Solusi: override langsung dengan URL CDN agar marker tampil tanpa config tambahan.
+// ─── Fix Leaflet default icon di Vite ────────────────────────────────────────
 const DEFAULT_ICON = L.icon({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
@@ -27,7 +20,6 @@ const DEFAULT_ICON = L.icon({
 });
 L.Marker.prototype.options.icon = DEFAULT_ICON;
 
-// ─── Buat custom pin icon (Google Maps-style teardrop) ───────────────────────
 function createPinIcon(isActive: boolean): L.DivIcon {
   const size = isActive ? 40 : 34;
   const color = isActive ? "#1aa8a5" : "#27C7C3";
@@ -42,13 +34,10 @@ function createPinIcon(isActive: boolean): L.DivIcon {
           <stop offset="100%" stop-color="${color}"/>
         </radialGradient>
       </defs>
-      <!-- Teardrop body -->
       <path d="M20 2 C10.6 2 3 9.6 3 19 C3 30.2 20 48 20 48 C20 48 37 30.2 37 19 C37 9.6 29.4 2 20 2Z"
         fill="url(#pinGrad${isActive ? "A" : "B"})"
         stroke="rgba(255,255,255,0.45)" stroke-width="1.5"/>
-      <!-- Inner circle highlight -->
       <circle cx="20" cy="19" r="8" fill="rgba(255,255,255,0.25)"/>
-      <!-- Center dot -->
       <circle cx="20" cy="19" r="4.5" fill="white" opacity="0.95"/>
     </svg>
   `;
@@ -61,93 +50,8 @@ function createPinIcon(isActive: boolean): L.DivIcon {
   });
 }
 
-// ─── Data distribusi dummy (ganti dengan API call jika diperlukan) ────────────
-export const distributionData = [
-  {
-    id: 1,
-    city: "Jakarta",
-    province: "DKI Jakarta",
-    categories: ["Botol Parfum", "Kemasan Kosmetik", "Kemasan Premium"],
-    status: "Aktif",
-    totalOrders: "320+ Klien",
-    lat: -6.2088,
-    lng: 106.8456,
-  },
-  {
-    id: 2,
-    city: "Bandung",
-    province: "Jawa Barat",
-    categories: ["Botol Parfum", "Kemasan Skincare"],
-    status: "Aktif",
-    totalOrders: "180+ Klien",
-    lat: -6.9175,
-    lng: 107.6191,
-  },
-  {
-    id: 3,
-    city: "Semarang",
-    province: "Jawa Tengah",
-    categories: ["Kemasan Kosmetik", "Vial & Ampul"],
-    status: "Aktif",
-    totalOrders: "140+ Klien",
-    lat: -6.9932,
-    lng: 110.4203,
-  },
-  {
-    id: 4,
-    city: "Yogyakarta",
-    province: "DIY",
-    categories: ["Botol Parfum", "Kemasan Artisanal"],
-    status: "Aktif",
-    totalOrders: "95+ Klien",
-    lat: -7.7956,
-    lng: 110.3695,
-  },
-  {
-    id: 5,
-    city: "Surabaya",
-    province: "Jawa Timur",
-    categories: ["Botol Parfum", "Kemasan Kosmetik", "Kemasan Industri"],
-    status: "Aktif",
-    totalOrders: "210+ Klien",
-    lat: -7.2575,
-    lng: 112.7521,
-  },
-  {
-    id: 6,
-    city: "Bali",
-    province: "Bali",
-    categories: ["Kemasan Premium", "Botol Parfum", "Kemasan Spa"],
-    status: "Aktif",
-    totalOrders: "120+ Klien",
-    lat: -8.3405,
-    lng: 115.092,
-  },
-  {
-    id: 7,
-    city: "Medan",
-    province: "Sumatera Utara",
-    categories: ["Botol Parfum", "Kemasan Kosmetik"],
-    status: "Aktif",
-    totalOrders: "160+ Klien",
-    lat: 3.5952,
-    lng: 98.6722,
-  },
-  {
-    id: 8,
-    city: "Makassar",
-    province: "Sulawesi Selatan",
-    categories: ["Kemasan Kosmetik", "Botol Parfum"],
-    status: "Aktif",
-    totalOrders: "110+ Klien",
-    lat: -5.1477,
-    lng: 119.4327,
-  },
-];
+type Distribution = ApiDistribution;
 
-type Distribution = (typeof distributionData)[0];
-
-// ─── Sub-komponen: controller flyTo (harus di dalam MapContainer) ─────────────
 function MapFlyController({ target }: { target: Distribution | null }) {
   const map = useMap();
   useEffect(() => {
@@ -158,11 +62,8 @@ function MapFlyController({ target }: { target: Distribution | null }) {
   return null;
 }
 
-// ─── Sub-komponen: marker individual ─────────────────────────────────────────
 function CityMarker({
-  point,
-  isActive,
-  onClick,
+  point, isActive, onClick,
 }: {
   point: Distribution;
   isActive: boolean;
@@ -170,12 +71,13 @@ function CityMarker({
 }) {
   const markerRef = useRef<L.Marker>(null);
 
-  // Buka popup otomatis saat jadi aktif dari sidebar
   useEffect(() => {
     if (isActive && markerRef.current) {
       markerRef.current.openPopup();
     }
   }, [isActive]);
+
+  const totalOrders = point.totalOrders ?? point.total_orders ?? "";
 
   return (
     <Marker
@@ -184,13 +86,7 @@ function CityMarker({
       icon={createPinIcon(isActive)}
       eventHandlers={{ click: onClick }}
     >
-      <Popup
-        className="antara-popup"
-        closeButton={true}
-        maxWidth={260}
-        minWidth={230}
-      >
-        {/* Popup content — styling via injected <style> di bawah */}
+      <Popup className="antara-popup" closeButton={true} maxWidth={260} minWidth={230}>
         <div className="antara-popup-inner">
           <div className="antara-popup-header">
             <div>
@@ -209,7 +105,7 @@ function CityMarker({
           </div>
           <div className="antara-popup-orders">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#27C7C3" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-            <span>{point.totalOrders} aktif</span>
+            <span>{totalOrders} aktif</span>
           </div>
         </div>
       </Popup>
@@ -219,12 +115,17 @@ function CityMarker({
 
 // ─── Komponen utama ───────────────────────────────────────────────────────────
 export function DistributionArea() {
+  const [distributionData, setDistributionData] = useState<Distribution[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeCity, setActiveCity] = useState<Distribution | null>(null);
   const [isMounted, setIsMounted] = useState(false);
 
-  // Leaflet butuh DOM — pastikan sudah mount sebelum render MapContainer
   useEffect(() => {
     setIsMounted(true);
+    apiGetDistribution()
+      .then((data) => setDistributionData(data))
+      .catch((err) => console.error("Failed to load distribution:", err))
+      .finally(() => setLoading(false));
   }, []);
 
   const handleSidebarClick = (point: Distribution) => {
@@ -235,7 +136,7 @@ export function DistributionArea() {
     <section id="distribusi" className="py-24 bg-white overflow-hidden">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
 
-        {/* ── Header ── */}
+        {/* Header */}
         <div className="text-center mb-16">
           <span
             className="inline-block px-4 py-1.5 rounded-full bg-[#27C7C3]/10 text-[#27C7C3] text-xs font-semibold tracking-widest uppercase mb-4"
@@ -259,16 +160,16 @@ export function DistributionArea() {
           </p>
         </div>
 
-        {/* ── Main layout: Map + Sidebar ── */}
+        {/* Map + Sidebar */}
         <div className="flex flex-col lg:flex-row gap-8 items-start">
 
-          {/* ── MAP CONTAINER ── */}
+          {/* MAP */}
           <div className="flex-1 min-w-0">
             <div
               className="relative rounded-3xl overflow-hidden shadow-2xl border border-gray-100"
               style={{ height: 500 }}
             >
-              {isMounted ? (
+              {isMounted && !loading ? (
                 <MapContainer
                   center={[-2.5, 118.0]}
                   zoom={5}
@@ -277,17 +178,12 @@ export function DistributionArea() {
                   zoomControl={true}
                   attributionControl={true}
                 >
-                  {/* Tile layer OpenStreetMap (CartoDB Positron — bersih & modern) */}
                   <TileLayer
                     attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
                     url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png"
                     maxZoom={19}
                   />
-
-                  {/* Controller flyTo */}
                   <MapFlyController target={activeCity} />
-
-                  {/* Markers */}
                   {distributionData.map((point) => (
                     <CityMarker
                       key={point.id}
@@ -298,57 +194,54 @@ export function DistributionArea() {
                   ))}
                 </MapContainer>
               ) : (
-                /* Skeleton saat belum mount */
                 <div className="w-full h-full bg-gradient-to-br from-[#e8f9f9] to-[#f0fdfd] flex items-center justify-center rounded-3xl">
                   <div className="flex flex-col items-center gap-3 text-[#27C7C3]">
                     <Navigation2 size={32} className="animate-pulse" />
                     <span className="text-sm font-medium" style={{ fontFamily: "Poppins, sans-serif" }}>
-                      Memuat peta…
+                      {loading ? "Memuat data…" : "Memuat peta…"}
                     </span>
                   </div>
                 </div>
               )}
 
-              {/* Legend overlay */}
+              {/* Legend */}
               <div className="absolute top-4 left-4 z-[1000] flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-xl px-3 py-2 shadow-md pointer-events-none">
                 <span className="w-2.5 h-2.5 rounded-full bg-[#27C7C3]" />
-                <span
-                  className="text-xs text-gray-600 font-medium"
-                  style={{ fontFamily: "Poppins, sans-serif" }}
-                >
+                <span className="text-xs text-gray-600 font-medium" style={{ fontFamily: "Poppins, sans-serif" }}>
                   Titik Distribusi Aktif
                 </span>
               </div>
             </div>
 
-            <p
-              className="text-center text-xs text-gray-400 mt-3"
-              style={{ fontFamily: "Poppins, sans-serif" }}
-            >
+            <p className="text-center text-xs text-gray-400 mt-3" style={{ fontFamily: "Poppins, sans-serif" }}>
               Klik marker pada peta atau pilih kota di daftar untuk detail distribusi
             </p>
           </div>
 
-          {/* ── SIDEBAR LIST ── */}
+          {/* SIDEBAR */}
           <div className="w-full lg:w-80 shrink-0">
             <div className="rounded-3xl border border-gray-100 bg-gray-50 overflow-hidden shadow-sm">
               <div className="px-5 py-4 border-b border-gray-100 bg-white flex items-center justify-between">
-                <h3
-                  className="text-sm font-semibold text-gray-900"
-                  style={{ fontFamily: "Montserrat, sans-serif" }}
-                >
+                <h3 className="text-sm font-semibold text-gray-900" style={{ fontFamily: "Montserrat, sans-serif" }}>
                   Lokasi Distribusi
                 </h3>
-                <span
-                  className="text-xs text-[#27C7C3] font-semibold px-2.5 py-1 rounded-full bg-[#27C7C3]/10"
-                  style={{ fontFamily: "Poppins, sans-serif" }}
-                >
+                <span className="text-xs text-[#27C7C3] font-semibold px-2.5 py-1 rounded-full bg-[#27C7C3]/10" style={{ fontFamily: "Poppins, sans-serif" }}>
                   {distributionData.length} Kota
                 </span>
               </div>
 
               <div className="divide-y divide-gray-100 max-h-[420px] overflow-y-auto">
-                {distributionData.map((point) => {
+                {loading ? (
+                  Array.from({ length: 5 }).map((_, i) => (
+                    <div key={i} className="px-5 py-4 bg-white animate-pulse flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-xl bg-gray-100 shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-3 bg-gray-100 rounded w-1/2" />
+                        <div className="h-2 bg-gray-100 rounded w-1/3" />
+                      </div>
+                    </div>
+                  ))
+                ) : distributionData.map((point) => {
                   const isActive = activeCity?.id === point.id;
                   return (
                     <button
@@ -362,9 +255,7 @@ export function DistributionArea() {
                     >
                       <div
                         className={`mt-0.5 w-8 h-8 rounded-xl flex items-center justify-center shrink-0 transition-colors ${
-                          isActive
-                            ? "bg-[#27C7C3] text-white"
-                            : "bg-[#27C7C3]/10 text-[#27C7C3]"
+                          isActive ? "bg-[#27C7C3] text-white" : "bg-[#27C7C3]/10 text-[#27C7C3]"
                         }`}
                       >
                         <MapPin size={15} />
@@ -372,55 +263,35 @@ export function DistributionArea() {
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between mb-1">
                           <p
-                            className={`text-sm font-semibold truncate ${
-                              isActive ? "text-[#27C7C3]" : "text-gray-900"
-                            }`}
+                            className={`text-sm font-semibold truncate ${isActive ? "text-[#27C7C3]" : "text-gray-900"}`}
                             style={{ fontFamily: "Montserrat, sans-serif" }}
                           >
                             {point.city}
                           </p>
                           <span className="flex items-center gap-1 ml-2 shrink-0">
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            <span
-                              className="text-xs text-emerald-600 font-medium"
-                              style={{ fontFamily: "Poppins, sans-serif" }}
-                            >
+                            <span className="text-xs text-emerald-600 font-medium" style={{ fontFamily: "Poppins, sans-serif" }}>
                               {point.status}
                             </span>
                           </span>
                         </div>
-                        <p
-                          className="text-xs text-gray-400 mb-2 truncate"
-                          style={{ fontFamily: "Poppins, sans-serif" }}
-                        >
+                        <p className="text-xs text-gray-400 mb-2 truncate" style={{ fontFamily: "Poppins, sans-serif" }}>
                           {point.province}
                         </p>
                         <div className="flex flex-wrap gap-1">
                           {point.categories.slice(0, 2).map((cat) => (
-                            <span
-                              key={cat}
-                              className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium"
-                              style={{ fontFamily: "Poppins, sans-serif" }}
-                            >
+                            <span key={cat} className="px-2 py-0.5 rounded-full bg-gray-100 text-gray-500 text-[10px] font-medium" style={{ fontFamily: "Poppins, sans-serif" }}>
                               {cat}
                             </span>
                           ))}
                           {point.categories.length > 2 && (
-                            <span
-                              className="px-2 py-0.5 rounded-full bg-[#27C7C3]/10 text-[#27C7C3] text-[10px] font-medium"
-                              style={{ fontFamily: "Poppins, sans-serif" }}
-                            >
+                            <span className="px-2 py-0.5 rounded-full bg-[#27C7C3]/10 text-[#27C7C3] text-[10px] font-medium" style={{ fontFamily: "Poppins, sans-serif" }}>
                               +{point.categories.length - 2}
                             </span>
                           )}
                         </div>
                       </div>
-                      <ChevronRight
-                        size={14}
-                        className={`mt-2 shrink-0 transition-colors ${
-                          isActive ? "text-[#27C7C3]" : "text-gray-300"
-                        }`}
-                      />
+                      <ChevronRight size={14} className={`mt-2 shrink-0 transition-colors ${isActive ? "text-[#27C7C3]" : "text-gray-300"}`} />
                     </button>
                   );
                 })}
@@ -428,21 +299,12 @@ export function DistributionArea() {
             </div>
 
             {/* CTA card */}
-            <div
-              className="mt-4 rounded-3xl p-5 text-center"
-              style={{ background: "linear-gradient(135deg, #27C7C3, #1aa8a5)" }}
-            >
+            <div className="mt-4 rounded-3xl p-5 text-center" style={{ background: "linear-gradient(135deg, #27C7C3, #1aa8a5)" }}>
               <CheckCircle2 size={28} className="text-white/80 mx-auto mb-3" />
-              <p
-                className="text-white font-semibold text-sm mb-1"
-                style={{ fontFamily: "Montserrat, sans-serif" }}
-              >
+              <p className="text-white font-semibold text-sm mb-1" style={{ fontFamily: "Montserrat, sans-serif" }}>
                 Belum ada di kotamu?
               </p>
-              <p
-                className="text-white/75 text-xs mb-4"
-                style={{ fontFamily: "Poppins, sans-serif", lineHeight: 1.7 }}
-              >
+              <p className="text-white/75 text-xs mb-4" style={{ fontFamily: "Poppins, sans-serif", lineHeight: 1.7 }}>
                 Kami melayani pengiriman ke seluruh Indonesia.
                 Hubungi kami untuk info lebih lanjut.
               </p>
@@ -457,10 +319,10 @@ export function DistributionArea() {
           </div>
         </div>
 
-        {/* ── Stats strip ── */}
+        {/* Stats strip */}
         <div className="mt-14 grid grid-cols-2 lg:grid-cols-4 gap-5">
           {[
-            { value: "8+", label: "Kota Distribusi", sub: "Di seluruh Indonesia" },
+            { value: `${distributionData.length || "8"}+`, label: "Kota Distribusi", sub: "Di seluruh Indonesia" },
             { value: "900+", label: "Klien Aktif", sub: "Dari berbagai kota" },
             { value: "3–7 Hari", label: "Estimasi Kirim", sub: "Standar pengiriman" },
             { value: "100%", label: "Terverifikasi", sub: "Setiap pengiriman" },
@@ -469,22 +331,13 @@ export function DistributionArea() {
               key={stat.label}
               className="group p-6 rounded-2xl bg-gray-50 border border-gray-100 hover:border-[#27C7C3]/30 hover:bg-[#27C7C3]/5 transition-all duration-300 text-center"
             >
-              <div
-                className="text-3xl text-[#27C7C3] mb-2 group-hover:scale-110 transition-transform duration-300"
-                style={{ fontFamily: "Montserrat, sans-serif", fontWeight: 800 }}
-              >
+              <div className="text-3xl text-[#27C7C3] mb-2 group-hover:scale-110 transition-transform duration-300" style={{ fontFamily: "Montserrat, sans-serif", fontWeight: 800 }}>
                 {stat.value}
               </div>
-              <div
-                className="text-gray-900 text-sm font-semibold mb-1"
-                style={{ fontFamily: "Poppins, sans-serif" }}
-              >
+              <div className="text-gray-900 text-sm font-semibold mb-1" style={{ fontFamily: "Poppins, sans-serif" }}>
                 {stat.label}
               </div>
-              <div
-                className="text-gray-400 text-xs"
-                style={{ fontFamily: "Poppins, sans-serif" }}
-              >
+              <div className="text-gray-400 text-xs" style={{ fontFamily: "Poppins, sans-serif" }}>
                 {stat.sub}
               </div>
             </div>
@@ -492,9 +345,8 @@ export function DistributionArea() {
         </div>
       </div>
 
-      {/* ── Inject Leaflet popup styles & fix zoom control position ── */}
+      {/* Leaflet popup styles */}
       <style>{`
-        /* Override Leaflet popup chrome dengan desain Antara Aroma */
         .antara-popup .leaflet-popup-content-wrapper {
           border-radius: 16px !important;
           padding: 0 !important;
@@ -503,112 +355,21 @@ export function DistributionArea() {
           overflow: hidden;
           font-family: 'Poppins', sans-serif;
         }
-        .antara-popup .leaflet-popup-content {
-          margin: 0 !important;
-          width: auto !important;
-        }
-        .antara-popup .leaflet-popup-tip {
-          background: white !important;
-          box-shadow: none !important;
-        }
-        .antara-popup-inner {
-          padding: 16px 18px 14px;
-          min-width: 210px;
-        }
-        .antara-popup-header {
-          display: flex;
-          align-items: flex-start;
-          justify-content: space-between;
-          margin-bottom: 10px;
-          gap: 8px;
-        }
-        .antara-popup-province {
-          display: block;
-          font-size: 10px;
-          font-weight: 600;
-          letter-spacing: 0.12em;
-          text-transform: uppercase;
-          color: #27C7C3;
-          margin-bottom: 2px;
-        }
-        .antara-popup-city {
-          font-family: 'Montserrat', sans-serif;
-          font-size: 16px;
-          font-weight: 700;
-          color: #111827;
-          margin: 0;
-          line-height: 1.2;
-        }
-        .antara-popup-status {
-          display: inline-flex;
-          align-items: center;
-          gap: 5px;
-          padding: 3px 9px;
-          border-radius: 99px;
-          background: #f0fdf4;
-          color: #16a34a;
-          font-size: 11px;
-          font-weight: 600;
-          white-space: nowrap;
-          flex-shrink: 0;
-        }
-        .antara-popup-dot {
-          width: 6px;
-          height: 6px;
-          border-radius: 50%;
-          background: #22c55e;
-          display: inline-block;
-        }
-        .antara-popup-cats {
-          display: flex;
-          flex-wrap: wrap;
-          gap: 5px;
-          margin-bottom: 10px;
-        }
-        .antara-popup-cat {
-          padding: 3px 9px;
-          border-radius: 99px;
-          background: rgba(39,199,195,0.10);
-          color: #1aa8a5;
-          font-size: 10.5px;
-          font-weight: 500;
-        }
-        .antara-popup-orders {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 11.5px;
-          color: #6b7280;
-          font-weight: 500;
-        }
-
-        /* Perbaiki z-index zoom control agar tampil di atas peta */
-        .leaflet-control-zoom {
-          border-radius: 12px !important;
-          overflow: hidden;
-          box-shadow: 0 4px 16px rgba(0,0,0,0.13) !important;
-          border: none !important;
-        }
-        .leaflet-control-zoom a {
-          width: 34px !important;
-          height: 34px !important;
-          line-height: 34px !important;
-          font-size: 18px !important;
-          color: #374151 !important;
-          background: white !important;
-          border-bottom: 1px solid #f3f4f6 !important;
-          font-weight: 400 !important;
-        }
-        .leaflet-control-zoom a:hover {
-          background: #f9fafb !important;
-          color: #27C7C3 !important;
-        }
-        .leaflet-control-attribution {
-          font-size: 10px !important;
-          background: rgba(255,255,255,0.75) !important;
-          backdrop-filter: blur(4px) !important;
-          border-radius: 8px 0 0 0 !important;
-        }
+        .antara-popup .leaflet-popup-content { margin: 0 !important; width: auto !important; }
+        .antara-popup .leaflet-popup-tip { background: white !important; box-shadow: none !important; }
+        .antara-popup-inner { padding: 16px 18px 14px; min-width: 210px; }
+        .antara-popup-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+        .antara-popup-province { display: block; font-size: 10px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: #27C7C3; margin-bottom: 2px; }
+        .antara-popup-city { font-family: 'Montserrat', sans-serif; font-size: 16px; font-weight: 700; color: #111827; margin: 0; line-height: 1.2; }
+        .antara-popup-status { display: inline-flex; align-items: center; gap: 5px; padding: 3px 9px; border-radius: 99px; background: #f0fdf4; color: #16a34a; font-size: 11px; font-weight: 600; white-space: nowrap; flex-shrink: 0; }
+        .antara-popup-dot { width: 6px; height: 6px; border-radius: 50%; background: #22c55e; display: inline-block; }
+        .antara-popup-cats { display: flex; flex-wrap: wrap; gap: 5px; margin-bottom: 10px; }
+        .antara-popup-cat { padding: 3px 9px; border-radius: 99px; background: rgba(39,199,195,0.10); color: #1aa8a5; font-size: 10.5px; font-weight: 500; }
+        .antara-popup-orders { display: flex; align-items: center; gap: 6px; font-size: 11.5px; color: #6b7280; font-weight: 500; }
+        .leaflet-control-zoom { border-radius: 12px !important; overflow: hidden; box-shadow: 0 4px 16px rgba(0,0,0,0.13) !important; border: none !important; }
+        .leaflet-control-zoom a { width: 34px !important; height: 34px !important; line-height: 34px !important; font-size: 18px !important; color: #374151 !important; background: white !important; border-bottom: 1px solid #f3f4f6 !important; font-weight: 400 !important; }
+        .leaflet-control-zoom a:hover { background: #f9fafb !important; color: #27C7C3 !important; }
+        .leaflet-control-attribution { font-size: 10px !important; background: rgba(255,255,255,0.75) !important; backdrop-filter: blur(4px) !important; border-radius: 8px 0 0 0 !important; }
       `}</style>
     </section>
   );

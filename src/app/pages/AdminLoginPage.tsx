@@ -1,11 +1,11 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
-import { Eye, EyeOff, Lock, User, LogIn } from "lucide-react";
-import { loginAdmin, isAdminLoggedIn } from "../utils/storage";
+import { Eye, EyeOff, Lock, Mail, LogIn } from "lucide-react";
+import { apiLogin, isAdminLoggedIn, setToken } from "../utils/api";
 
 export function AdminLoginPage() {
   const navigate = useNavigate();
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("admin@antaraaroma.com");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [error, setError] = useState("");
@@ -15,19 +15,31 @@ export function AdminLoginPage() {
     if (isAdminLoggedIn()) navigate("/admin/dashboard", { replace: true });
   }, [navigate]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+
+    if (!email.trim() || !password.trim()) {
+      setError("Email dan password wajib diisi.");
+      return;
+    }
+
     setLoading(true);
-    setTimeout(() => {
-      const ok = loginAdmin(username.trim(), password);
-      if (ok) {
-        navigate("/admin/dashboard", { replace: true });
-      } else {
-        setError("Username atau password salah.");
-        setLoading(false);
-      }
-    }, 500);
+
+    try {
+      const { token } = await apiLogin(email.trim(), password);
+      setToken(token);
+      navigate("/admin/dashboard", { replace: true });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Login gagal.";
+      setError(
+        msg === "HTTP 401" || msg.toLowerCase().includes("invalid")
+          ? "Email atau password salah."
+          : msg
+      );
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -39,7 +51,6 @@ export function AdminLoginPage() {
         fontFamily: "Poppins, sans-serif",
       }}
     >
-      {/* Decorative blobs */}
       <div
         className="absolute top-0 left-0 w-96 h-96 rounded-full opacity-10 pointer-events-none"
         style={{
@@ -64,7 +75,6 @@ export function AdminLoginPage() {
           boxShadow: "0 32px 64px rgba(0,0,0,0.5)",
         }}
       >
-        {/* Header strip */}
         <div
           className="h-1 w-full"
           style={{
@@ -73,7 +83,6 @@ export function AdminLoginPage() {
         />
 
         <div className="px-8 py-10">
-          {/* Logo / title */}
           <div className="text-center mb-8">
             <div
               className="inline-flex items-center justify-center w-16 h-16 rounded-2xl mb-4"
@@ -84,37 +93,40 @@ export function AdminLoginPage() {
             >
               <Lock size={28} color="#27C7C3" />
             </div>
+
             <h1
               className="text-2xl font-bold tracking-wide"
               style={{ color: "#ffffff" }}
             >
               ANTARA AROMA
             </h1>
+
             <p className="text-sm mt-1" style={{ color: "#8a8aaa" }}>
               Panel Admin
             </p>
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            {/* Username */}
             <div>
               <label
                 className="block text-xs font-medium mb-2 tracking-widest uppercase"
                 style={{ color: "#8a8aaa" }}
               >
-                Username
+                Email Admin
               </label>
+
               <div className="relative">
-                <User
+                <Mail
                   size={16}
                   className="absolute left-3 top-1/2 -translate-y-1/2"
                   style={{ color: "#8a8aaa" }}
                 />
+
                 <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="Masukkan username"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="admin@antaraaroma.com"
                   required
                   className="w-full pl-9 pr-4 py-3 rounded-xl text-sm outline-none transition-all"
                   style={{
@@ -133,7 +145,6 @@ export function AdminLoginPage() {
               </div>
             </div>
 
-            {/* Password */}
             <div>
               <label
                 className="block text-xs font-medium mb-2 tracking-widest uppercase"
@@ -141,12 +152,14 @@ export function AdminLoginPage() {
               >
                 Password
               </label>
+
               <div className="relative">
                 <Lock
                   size={16}
                   className="absolute left-3 top-1/2 -translate-y-1/2"
                   style={{ color: "#8a8aaa" }}
                 />
+
                 <input
                   type={showPass ? "text" : "password"}
                   value={password}
@@ -167,6 +180,7 @@ export function AdminLoginPage() {
                       "rgba(255,255,255,0.1)")
                   }
                 />
+
                 <button
                   type="button"
                   className="absolute right-3 top-1/2 -translate-y-1/2 opacity-60 hover:opacity-100 transition-opacity"
@@ -181,7 +195,6 @@ export function AdminLoginPage() {
               </div>
             </div>
 
-            {/* Error */}
             {error && (
               <div
                 className="text-sm px-4 py-3 rounded-xl"
@@ -195,7 +208,6 @@ export function AdminLoginPage() {
               </div>
             )}
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={loading}

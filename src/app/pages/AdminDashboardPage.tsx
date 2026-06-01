@@ -1,3 +1,4 @@
+// src/app/pages/AdminDashboardPage.tsx
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router";
 import {
@@ -6,11 +7,12 @@ import {
   Package, Upload, ImagePlus, MessageSquare, Clock, UserCircle2, CheckCheck,
 } from "lucide-react";
 import {
-  isAdminLoggedIn, logoutAdmin, getProducts, addProduct, updateProduct,
-  deleteProduct, resetProducts, getReviews, approveReview, deleteReview,
-  type Review,
-} from "../utils/storage";
-import type { Product, Category } from "../data/products";
+  isAdminLoggedIn, removeToken,
+  apiGetProducts, apiCreateProduct, apiUpdateProduct, apiDeleteProduct,
+  apiGetReviewsAdmin, apiApproveReview, apiRejectReview, apiDeleteReview,
+  type ApiProduct, type ApiReview,
+} from "../utils/api";
+import type { Category } from "../data/products";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,9 @@ const MAX_FILE_SIZE_MB = 5;
 const COMPRESS_THRESHOLD_MB = 1;
 const COMPRESS_MAX_DIM = 1200;
 const COMPRESS_QUALITY = 0.82;
+
+type Product = ApiProduct;
+type Review = ApiReview;
 
 type FormData = Omit<Product,"id"|"capacity"|"tags"|"rating"|"reviewCount"> & {
   capacityStr: string;
@@ -103,8 +108,10 @@ export function AdminDashboardPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!isAdminLoggedIn()) navigate("/admin/login",{replace:true});
-    else { setProducts(getProducts()); setReviews(getReviews()); }
+    if (!isAdminLoggedIn()) { navigate("/admin/login",{replace:true}); return; }
+    refreshProducts();
+    refreshReviews();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   function toast(type:"success"|"error"|"info", text:string) {
@@ -112,9 +119,18 @@ export function AdminDashboardPage() {
     setToasts((t) => [...t,{id,type,text}]);
     setTimeout(() => setToasts((t) => t.filter((x) => x.id!==id)), 3500);
   }
-  function refreshProducts() { setProducts(getProducts()); }
-  function refreshReviews() { setReviews(getReviews()); }
-  function handleLogout() { logoutAdmin(); navigate("/admin/login",{replace:true}); }
+
+  async function refreshProducts() {
+    try { setProducts(await apiGetProducts()); }
+    catch (e) { toast("error", e instanceof Error ? e.message : "Gagal memuat produk."); }
+  }
+
+  async function refreshReviews() {
+    try { setReviews(await apiGetReviewsAdmin()); }
+    catch (e) { toast("error", e instanceof Error ? e.message : "Gagal memuat ulasan."); }
+  }
+
+  function handleLogout() { removeToken(); navigate("/admin/login",{replace:true}); }
 
   async function handleImageFile(file: File) {
     if (!ALLOWED_TYPES.includes(file.type)) { toast("error","Format tidak didukung. Gunakan JPG, PNG, atau WebP."); return; }
@@ -144,50 +160,80 @@ export function AdminDashboardPage() {
   }
   function openEdit(product: Product) {
     setEditingProduct(product);
-    setForm({ name:product.name,category:product.category,sku:product.sku,material:product.material,
-      capacityStr:product.capacity.join(", "),finish:product.finish,moq:product.moq,
-      badge:product.badge??"",badgeColor:product.badgeColor??"#27C7C3",
-      isNew:product.isNew??false,isPopular:product.isPopular??false,
-      image:product.image,description:product.description,
-      tagsStr:product.tags.join(", "),dateAdded:product.dateAdded,
+    setForm({
+      name:product.name, category:product.category as Exclude<Category,"All">,
+      sku:product.sku, material:product.material,
+      capacityStr:product.capacity.join(", "), finish:product.finish, moq:product.moq,
+      badge:product.badge??"", badgeColor:product.badgeColor??"#27C7C3",
+      isNew:product.isNew??false, isPopular:product.isPopular??false,
+      image:product.image, description:product.description,
+      tagsStr:product.tags.join(", "), dateAdded:product.dateAdded,
     });
     setImagePreview(product.image); setShowForm(true);
     setTimeout(() => formRef.current?.scrollIntoView({behavior:"smooth"}), 50);
   }
   function closeForm() { setShowForm(false); setEditingProduct(null); setImagePreview(""); }
 
-  function handleSave() {
+  async function handleSave() {
     if (!form.name.trim()) { toast("error","Nama produk tidak boleh kosong."); return; }
     if (!form.sku.trim()) { toast("error","Kode produk (SKU) tidak boleh kosong."); return; }
     const productData: Omit<Product,"id"> = {
-      name:form.name.trim(),category:form.category as Exclude<Category,"All">,
-      sku:form.sku.trim(),material:form.material.trim(),
+      name:form.name.trim(), category:form.category as Exclude<Category,"All">,
+      sku:form.sku.trim(), material:form.material.trim(),
       capacity:form.capacityStr.split(",").map((s)=>s.trim()).filter(Boolean),
-      finish:form.finish.trim(),moq:form.moq.trim(),
-      badge:form.badge.trim()||undefined,badgeColor:form.badge.trim()?form.badgeColor:undefined,
-      isNew:form.isNew,isPopular:form.isPopular,
-      rating:editingProduct?.rating??4.5,reviewCount:editingProduct?.reviewCount??0,
-      image:form.image,description:form.description.trim(),
+      finish:form.finish.trim(), moq:form.moq.trim(),
+      badge:form.badge.trim()||undefined, badgeColor:form.badge.trim()?form.badgeColor:undefined,
+      isNew:form.isNew, isPopular:form.isPopular,
+      rating:editingProduct?.rating??4.5, reviewCount:editingProduct?.reviewCount??0,
+      image:form.image, description:form.description.trim(),
       tags:form.tagsStr.split(",").map((s)=>s.trim()).filter(Boolean),
       dateAdded:form.dateAdded,
     };
-    if (editingProduct) { updateProduct({...productData,id:editingProduct.id}); toast("success","Produk berhasil diperbarui."); }
-    else { addProduct(productData); toast("success","Produk baru berhasil ditambahkan."); }
-    refreshProducts(); closeForm();
+    try {
+      if (editingProduct) {
+        await apiUpdateProduct(editingProduct.id, productData);
+        toast("success","Produk berhasil diperbarui.");
+      } else {
+        await apiCreateProduct(productData);
+        toast("success","Produk baru berhasil ditambahkan.");
+      }
+      await refreshProducts();
+      closeForm();
+    } catch (e) {
+      toast("error", e instanceof Error ? e.message : "Gagal menyimpan produk.");
+    }
   }
 
-  function handleDelete(id:number) { deleteProduct(id); refreshProducts(); setDeleteConfirm(null); toast("success","Produk berhasil dihapus."); }
-  function handleReset() { resetProducts(); refreshProducts(); setResetConfirm(false); toast("success","Katalog telah direset ke data default."); }
-
-  function handleApproveReview(id:number) {
-    approveReview(id); refreshReviews();
-    window.dispatchEvent(new Event("reviewsUpdated"));
-    toast("success","Ulasan berhasil disetujui dan akan tampil di katalog.");
+  async function handleDelete(id:number) {
+    try {
+      await apiDeleteProduct(id);
+      await refreshProducts();
+      setDeleteConfirm(null);
+      toast("success","Produk berhasil dihapus.");
+    } catch (e) {
+      toast("error", e instanceof Error ? e.message : "Gagal menghapus produk.");
+    }
   }
-  function handleDeleteReview(id:number) {
-    deleteReview(id); refreshReviews(); setDeleteReviewConfirm(null);
-    window.dispatchEvent(new Event("reviewsUpdated"));
-    toast("success","Ulasan berhasil dihapus.");
+
+  // Reset: hanya clear UI, tidak ada endpoint reset di backend
+  function handleReset() { setResetConfirm(false); toast("info","Fitur reset tersedia melalui database admin."); }
+
+  async function handleApproveReview(id:number) {
+    try {
+      await apiApproveReview(id);
+      await refreshReviews();
+      window.dispatchEvent(new Event("reviewsUpdated"));
+      toast("success","Ulasan berhasil disetujui dan akan tampil di katalog.");
+    } catch (e) { toast("error", e instanceof Error ? e.message : "Gagal menyetujui ulasan."); }
+  }
+  async function handleDeleteReview(id:number) {
+    try {
+      await apiDeleteReview(id);
+      await refreshReviews();
+      setDeleteReviewConfirm(null);
+      window.dispatchEvent(new Event("reviewsUpdated"));
+      toast("success","Ulasan berhasil dihapus.");
+    } catch (e) { toast("error", e instanceof Error ? e.message : "Gagal menghapus ulasan."); }
   }
 
   const filteredProducts = products.filter((p) =>
@@ -232,7 +278,6 @@ export function AdminDashboardPage() {
         </div>
 
         <nav className="flex-1 px-3 py-4 space-y-1">
-          {/* Kelola Katalog */}
           <button
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
             style={{ background:activeMenu==="katalog"?"rgba(39,199,195,0.12)":"transparent",
@@ -242,7 +287,6 @@ export function AdminDashboardPage() {
             <PackageSearch size={16}/> Kelola Katalog Produk
           </button>
 
-          {/* Kelola Ulasan */}
           <button
             className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all"
             style={{ background:activeMenu==="ulasan"?"rgba(39,199,195,0.12)":"transparent",
@@ -500,7 +544,7 @@ export function AdminDashboardPage() {
               {/* Filter tabs + search */}
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex rounded-xl overflow-hidden border" style={{ borderColor:C.cardBorder }}>
-                  {([["semua","Semua"],["pending","Menunggu"],["approved","Disetujui"]] as const).map(([val,lbl]) => (
+                  {(([["semua","Semua"],["pending","Menunggu"],["approved","Disetujui"]] as const)).map(([val,lbl]) => (
                     <button key={val} onClick={()=>setReviewFilter(val)}
                       className="px-4 py-2 text-xs font-medium transition-all"
                       style={{ background:reviewFilter===val?"rgba(39,199,195,0.15)":"rgba(255,255,255,0.02)",
@@ -536,10 +580,8 @@ export function AdminDashboardPage() {
                   return (
                     <div key={r.id} className="rounded-2xl p-5 transition-all" style={{ background:C.card, border:`1px solid ${r.status==="pending"?"rgba(245,158,11,0.2)":C.cardBorder}` }}>
                       <div className="flex items-start gap-4">
-                        {/* Avatar */}
                         <div className="w-10 h-10 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0 text-white"
                           style={{ background:`linear-gradient(135deg,${C.teal},#1a9e9a)` }}>{initials}</div>
-                        {/* Content */}
                         <div className="flex-1 min-w-0">
                           <div className="flex items-start justify-between gap-3 flex-wrap">
                             <div>
@@ -549,7 +591,6 @@ export function AdminDashboardPage() {
                               </p>
                             </div>
                             <div className="flex items-center gap-2 flex-shrink-0">
-                              {/* Status badge */}
                               {r.status === "pending" ? (
                                 <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold"
                                   style={{ background:"rgba(245,158,11,0.15)", border:"1px solid rgba(245,158,11,0.3)", color:"#F59E0B" }}>
@@ -564,15 +605,12 @@ export function AdminDashboardPage() {
                               <span className="text-xs" style={{ color:C.muted }}>{dateStr}</span>
                             </div>
                           </div>
-                          {/* Stars */}
                           <div className="flex gap-0.5 mt-2">
                             {Array.from({length:5}).map((_,i) => (
                               <Star key={i} size={13} className={i<r.rating?"text-amber-400 fill-amber-400":"text-gray-600 fill-gray-600"}/>
                             ))}
                           </div>
-                          {/* Comment */}
                           <p className="text-sm mt-2" style={{ color:"rgba(232,232,240,0.75)", lineHeight:1.7 }}>{r.comment}</p>
-                          {/* Actions */}
                           <div className="flex gap-2 mt-3">
                             {r.status === "pending" && (
                               <button onClick={()=>handleApproveReview(r.id)}
@@ -641,12 +679,11 @@ export function AdminDashboardPage() {
             <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background:"rgba(212,24,61,0.15)" }}><RotateCcw size={18} color="#ff6b8a"/></div>
             <div>
               <h3 className="font-semibold" style={{ color:C.text }}>Reset Katalog?</h3>
-              <p className="text-xs mt-0.5" style={{ color:C.muted }}>Semua perubahan akan hilang dan katalog akan kembali ke data default.</p>
+              <p className="text-xs mt-0.5" style={{ color:C.muted }}>Fitur reset tidak tersedia via API. Silakan gunakan database admin secara langsung.</p>
             </div>
           </div>
           <div className="flex justify-end gap-3">
-            <button className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background:"rgba(255,255,255,0.06)", color:C.muted, border:`1px solid ${C.cardBorder}` }} onClick={()=>setResetConfirm(false)}>Batal</button>
-            <button className="px-4 py-2 rounded-xl text-sm font-semibold" style={{ background:"rgba(212,24,61,0.8)", color:"#fff" }} onClick={handleReset}>Reset Sekarang</button>
+            <button className="px-4 py-2 rounded-xl text-sm font-medium" style={{ background:"rgba(255,255,255,0.06)", color:C.muted, border:`1px solid ${C.cardBorder}` }} onClick={()=>setResetConfirm(false)}>Tutup</button>
           </div>
         </Modal>
       )}

@@ -1,11 +1,23 @@
+// src/app/components/Testimonials.tsx
+// Mengambil review approved dari GET /api/reviews (tanpa product_id = semua review approved)
+
+import { useState, useEffect } from "react";
 import { Star, Quote } from "lucide-react";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
+import { apiGetReviews, type ApiReview } from "../utils/api";
 
-const testimonials = [
+// Fallback avatar placeholders (jika tidak ada gambar dari API)
+const AVATAR_FALLBACKS = [
+  "https://images.unsplash.com/photo-1774897778836-3b13763e71b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
+  "https://images.unsplash.com/photo-1738566061505-556830f8b8f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
+];
+
+// Static fallback jika API belum ada data
+const STATIC_TESTIMONIALS = [
   {
     name: "Siti Rahayu",
     role: "Pendiri, Eira Parfum",
-    image: "https://images.unsplash.com/photo-1774897778836-3b13763e71b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjB3b21hbiUyMGJlYXV0eSUyMGluZHVzdHJ5JTIwcG9ydHJhaXR8ZW58MXx8fHwxNzc4NDI1Mzg2fDA&ixlib=rb-4.1.0&q=80&w=200",
+    image: "https://images.unsplash.com/photo-1774897778836-3b13763e71b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
     rating: 5,
     text: "ANTARA AROMA mengubah merek kami dengan botol kaca premium mereka. Kualitasnya luar biasa dan ukiran kustom terlihat sangat memukau. Pelanggan kami selalu memuji kemasannya!",
     product: "Botol Parfum Kaca Kustom",
@@ -13,7 +25,7 @@ const testimonials = [
   {
     name: "Budi Santoso",
     role: "CEO, Lumière Beauty",
-    image: "https://images.unsplash.com/photo-1738566061505-556830f8b8f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBtYW4lMjBidXNpbmVzcyUyMHBvcnRyYWl0JTIwYXNpYW58ZW58MXx8fHwxNzc4NDI1Mzg2fDA&ixlib=rb-4.1.0&q=80&w=200",
+    image: "https://images.unsplash.com/photo-1738566061505-556830f8b8f5?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
     rating: 5,
     text: "Sudah 3 tahun bekerja sama dengan ANTARA AROMA. Harga kompetitif dan kualitas konsisten mereka membantu kami mengembangkan bisnis. Tim sangat responsif dan pengiriman selalu tepat waktu.",
     product: "Koleksi Botol Semprot",
@@ -21,7 +33,7 @@ const testimonials = [
   {
     name: "Dewi Kusuma",
     role: "Manajer Merek, Velour Skin",
-    image: "https://images.unsplash.com/photo-1774897778836-3b13763e71b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjB3b21hbiUyMGJlYXV0eSUyMGluZHVzdHJ5JTIwcG9ydHJhaXR8ZW58MXx8fHwxNzc4NDI1Mzg2fDA&ixlib=rb-4.1.0&q=80&w=200",
+    image: "https://images.unsplash.com/photo-1774897778836-3b13763e71b3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&w=200",
     rating: 5,
     text: "Koleksi toples perawatan kulit sangat cocok untuk lini serum kami. Kaca buram terlihat sangat premium di rak. ANTARA AROMA benar-benar mitra kemasan berkelas dunia.",
     product: "Toples Perawatan Kulit Buram",
@@ -29,6 +41,30 @@ const testimonials = [
 ];
 
 export function Testimonials() {
+  const [testimonials, setTestimonials] = useState(STATIC_TESTIMONIALS);
+
+  useEffect(() => {
+    apiGetReviews()
+      .then((reviews: ApiReview[]) => {
+        if (reviews.length >= 3) {
+          // Gunakan 3 review terbaru yang approved sebagai testimonial
+          const mapped = reviews.slice(0, 6).map((r, i) => ({
+            name: r.customerName,
+            role: r.productName ? `Pengguna ${r.productName}` : "Pelanggan",
+            image: AVATAR_FALLBACKS[i % AVATAR_FALLBACKS.length],
+            rating: r.rating,
+            text: r.comment,
+            product: r.productName ?? "Produk Antara Aroma",
+          }));
+          setTestimonials(mapped.slice(0, 3));
+        }
+        // Jika < 3 review, tetap pakai static fallback
+      })
+      .catch(() => {
+        // Silently fallback ke data statis
+      });
+  }, []);
+
   return (
     <section className="py-24 bg-white">
       <div className="max-w-7xl mx-auto px-6 lg:px-8">
@@ -80,7 +116,7 @@ export function Testimonials() {
                 className="text-gray-600 text-sm flex-1 mb-6"
                 style={{ fontFamily: "Poppins, sans-serif", lineHeight: 1.8 }}
               >
-                "{t.text}"
+                &ldquo;{t.text}&rdquo;
               </p>
 
               {/* Product tag */}

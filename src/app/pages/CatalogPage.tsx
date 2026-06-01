@@ -1,3 +1,4 @@
+// src/app/pages/CatalogPage.tsx
 import { useState, useMemo, useEffect } from "react";
 import { Link } from "react-router";
 import {
@@ -5,7 +6,10 @@ import {
   X, ArrowUpDown, Package, MessageCircle,
 } from "lucide-react";
 import { type Category, type Product } from "../data/products";
-import { getProducts, getReviews, type Review } from "../utils/storage";
+import {
+  apiGetProducts, apiGetReviews, apiGetCatalogFilters,
+  type ApiReview, type ApiCatalogFilters,
+} from "../utils/api";
 import { ImageWithFallback } from "../components/figma/ImageWithFallback";
 import { ProductModal } from "../components/ProductModal";
 import { Footer } from "../components/Footer";
@@ -18,14 +22,12 @@ const SORT_OPTIONS: {value:SortKey;label:string}[] = [
   {value:"rating",label:"Rating Tertinggi"},{value:"name-asc",label:"Nama A–Z"},{value:"name-desc",label:"Nama Z–A"},
 ];
 
-// ── Compute rating map dari review approved saja (tidak pakai data statis produk) ──
-function buildRatingMap(products: Product[], reviews: Review[]): Record<number,{rating:number;reviewCount:number}> {
+function buildRatingMap(products: Product[], reviews: ApiReview[]): Record<number,{rating:number;reviewCount:number}> {
   const map: Record<number,{rating:number;reviewCount:number}> = {};
   const approved = reviews.filter((r) => r.status === "approved");
   products.forEach((p) => {
     const pReviews = approved.filter((r) => r.productId === p.id);
     if (pReviews.length === 0) {
-      // Tidak ada review approved → tampilkan fallback 0 agar komponen bisa render "Belum ada ulasan"
       map[p.id] = { rating: 0, reviewCount: 0 };
     } else {
       const avg = pReviews.reduce((s, r) => s + r.rating, 0) / pReviews.length;
@@ -37,22 +39,36 @@ function buildRatingMap(products: Product[], reviews: Review[]): Record<number,{
 
 export function CatalogPage() {
   const [allProducts, setAllProducts] = useState<Product[]>([]);
-  const [allReviews, setAllReviews] = useState<Review[]>([]);
+  const [allReviews, setAllReviews] = useState<ApiReview[]>([]);
+  const [catalogFilters, setCatalogFilters] = useState<ApiCatalogFilters>({ materials: [], minimum_orders: [] });
+  const [loading, setLoading] = useState(true);
+
+  async function loadData() {
+    setLoading(true);
+    try {
+      const [products, reviews, filters] = await Promise.all([
+        apiGetProducts(),
+        apiGetReviews(),
+        apiGetCatalogFilters(),
+      ]);
+      setAllProducts(products as unknown as Product[]);
+      setAllReviews(reviews);
+      setCatalogFilters(filters);
+    } catch (err) {
+      console.error("Failed to load catalog data:", err);
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    setAllProducts(getProducts());
-    setAllReviews(getReviews());
-
-    // Refresh otomatis saat review ditambah, disetujui, atau dihapus
-    function onReviewsUpdated() {
-      setAllProducts(getProducts());
-      setAllReviews(getReviews());
-    }
+    loadData();
+    function onReviewsUpdated() { loadData(); }
     window.addEventListener("reviewsUpdated", onReviewsUpdated);
     return () => window.removeEventListener("reviewsUpdated", onReviewsUpdated);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Computed rating map (rating otomatis dari review approved)
   const ratingMap = useMemo(() => buildRatingMap(allProducts, allReviews), [allProducts, allReviews]);
 
   const categoryCounts = useMemo<Record<string,number>>(() => {
@@ -90,6 +106,15 @@ export function CatalogPage() {
   }, [allProducts, activeCategory, search, sortKey, ratingMap]);
 
   const currentSortLabel = SORT_OPTIONS.find((o) => o.value === sortKey)?.label;
+
+  // Derive material & MOQ filter lists from API or fallback to defaults
+  const materialOptions = catalogFilters.materials.length > 0
+    ? catalogFilters.materials.map((m) => m.value)
+    : ["Glass","Acrylic","Aluminum","Mixed"];
+
+  const moqOptions = catalogFilters.minimum_orders.length > 0
+    ? catalogFilters.minimum_orders.map((m) => m.value)
+    : ["100 pcs","300 pcs","500 pcs","1000+ pcs"];
 
   return (
     <div className="min-h-screen bg-gray-50" style={{ fontFamily:"Poppins, sans-serif" }}>
@@ -158,7 +183,7 @@ export function CatalogPage() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 mb-4">
                 <h3 className="text-gray-900 font-semibold text-sm mb-4" style={{ fontFamily:"Montserrat, sans-serif" }}>Material Type</h3>
                 <div className="flex flex-col gap-2">
-                  {["Glass","Acrylic","Aluminum","Mixed"].map((m) => (
+                  {materialOptions.map((m) => (
                     <label key={m} className="flex items-center gap-3 cursor-pointer group">
                       <div className="w-4 h-4 rounded border-2 border-gray-200 group-hover:border-[#27C7C3] transition-colors flex-shrink-0" />
                       <span className="text-gray-600 text-sm group-hover:text-[#27C7C3] transition-colors" style={{ fontFamily:"Poppins, sans-serif" }}>{m}</span>
@@ -169,7 +194,7 @@ export function CatalogPage() {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <h3 className="text-gray-900 font-semibold text-sm mb-4" style={{ fontFamily:"Montserrat, sans-serif" }}>Min. Order Qty</h3>
                 <div className="flex flex-col gap-2">
-                  {["100 pcs","300 pcs","500 pcs","1000+ pcs"].map((moq) => (
+                  {moqOptions.map((moq) => (
                     <label key={moq} className="flex items-center gap-3 cursor-pointer group">
                       <div className="w-4 h-4 rounded border-2 border-gray-200 group-hover:border-[#27C7C3] transition-colors flex-shrink-0" />
                       <span className="text-gray-600 text-sm group-hover:text-[#27C7C3] transition-colors" style={{ fontFamily:"Poppins, sans-serif" }}>{moq}</span>
@@ -239,7 +264,23 @@ export function CatalogPage() {
               </div>
             )}
 
-            {filtered.length === 0 && (
+            {/* Loading skeleton */}
+            {loading && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+                {Array.from({length:6}).map((_,i) => (
+                  <div key={i} className="bg-white rounded-3xl overflow-hidden border border-gray-100 animate-pulse">
+                    <div className="h-56 bg-gray-100" />
+                    <div className="p-5 space-y-3">
+                      <div className="h-3 bg-gray-100 rounded w-1/3" />
+                      <div className="h-4 bg-gray-100 rounded w-2/3" />
+                      <div className="h-3 bg-gray-100 rounded w-full" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {!loading && filtered.length === 0 && (
               <div className="flex flex-col items-center justify-center py-24 text-center">
                 <Package size={48} className="text-gray-200 mb-4" />
                 <h3 className="text-gray-700 font-semibold text-lg mb-2" style={{ fontFamily:"Montserrat, sans-serif" }}>Produk tidak ditemukan</h3>
@@ -248,7 +289,7 @@ export function CatalogPage() {
               </div>
             )}
 
-            {viewMode === "grid" && filtered.length > 0 && (
+            {!loading && viewMode === "grid" && filtered.length > 0 && (
               <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
                 {filtered.map((product) => (
                   <ProductCard key={product.id} product={product}
@@ -257,7 +298,7 @@ export function CatalogPage() {
                 ))}
               </div>
             )}
-            {viewMode === "list" && filtered.length > 0 && (
+            {!loading && viewMode === "list" && filtered.length > 0 && (
               <div className="flex flex-col gap-4">
                 {filtered.map((product) => (
                   <ProductListCard key={product.id} product={product}
@@ -354,7 +395,6 @@ function ProductCard({ product, ratingSummary, onSelect }: {
 }) {
   const rating = ratingSummary?.rating ?? 0;
   const reviewCount = ratingSummary?.reviewCount ?? 0;
-
   return (
     <div className="group bg-white rounded-3xl overflow-hidden border border-gray-100 hover:border-[#27C7C3]/25 shadow-sm hover:shadow-xl transition-all duration-300 hover:-translate-y-1.5 cursor-pointer flex flex-col" onClick={onSelect}>
       <div className="relative overflow-hidden h-56 bg-gray-50">
@@ -397,7 +437,6 @@ function ProductListCard({ product, ratingSummary, onSelect }: {
 }) {
   const rating = ratingSummary?.rating ?? 0;
   const reviewCount = ratingSummary?.reviewCount ?? 0;
-
   return (
     <div className="group bg-white rounded-2xl border border-gray-100 hover:border-[#27C7C3]/25 shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer flex gap-5 p-4 hover:-translate-y-0.5" onClick={onSelect}>
       <div className="w-28 h-28 rounded-2xl overflow-hidden bg-gray-50 shrink-0">

@@ -1,16 +1,33 @@
+// src/app/components/Contact.tsx
 import { MapPin, Phone, Mail, Clock, Send } from "lucide-react";
 import { useState } from "react";
+import { apiCreateContact } from "../utils/api";
 
 export function Contact() {
   const [form, setForm] = useState({ name: "", email: "", company: "", message: "" });
   const [sent, setSent] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Simulate form submission
-    setSent(true);
-    setTimeout(() => setSent(false), 4000);
-    setForm({ name: "", email: "", company: "", message: "" });
+    setError("");
+    setSending(true);
+    try {
+      await apiCreateContact({
+        name: form.name,
+        email: form.email,
+        company: form.company || undefined,
+        message: form.message,
+      });
+      setSent(true);
+      setForm({ name: "", email: "", company: "", message: "" });
+      setTimeout(() => setSent(false), 4000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Gagal mengirim pesan. Coba lagi.");
+    } finally {
+      setSending(false);
+    }
   };
 
   const contactInfo = [
@@ -183,7 +200,7 @@ export function Contact() {
                 />
               </div>
 
-              <div className="mb-6">
+              <div className="mb-4">
                 <label
                   className="block text-xs text-gray-500 mb-2"
                   style={{ fontFamily: "Poppins, sans-serif" }}
@@ -201,13 +218,22 @@ export function Contact() {
                 />
               </div>
 
+              {error && (
+                <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-red-600 text-sm" style={{ fontFamily: "Poppins, sans-serif" }}>
+                  {error}
+                </div>
+              )}
+
               <button
                 type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#27C7C3] text-white text-sm font-semibold hover:bg-[#1fb3af] transition-all duration-200 shadow-lg shadow-[#27C7C3]/30 hover:scale-[1.01]"
+                disabled={sending}
+                className="w-full flex items-center justify-center gap-2 py-3.5 rounded-xl bg-[#27C7C3] text-white text-sm font-semibold hover:bg-[#1fb3af] transition-all duration-200 shadow-lg shadow-[#27C7C3]/30 hover:scale-[1.01] disabled:opacity-60 disabled:scale-100"
                 style={{ fontFamily: "Poppins, sans-serif" }}
               >
                 {sent ? (
                   "Pesan Terkirim! ✓"
+                ) : sending ? (
+                  <><span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />Mengirim...</>
                 ) : (
                   <>
                     Kirim Pesan

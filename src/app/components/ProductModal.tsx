@@ -1,3 +1,4 @@
+// src/app/components/ProductModal.tsx
 import { useState, useEffect, useRef } from "react";
 import {
   X, Star, Package, Layers, Ruler, MessageCircle, ChevronRight,
@@ -5,7 +6,7 @@ import {
 } from "lucide-react";
 import { type Product } from "../data/catalogData";
 import { ImageWithFallback } from "./figma/ImageWithFallback";
-import { addReview, getApprovedReviewsByProductId, type Review } from "../utils/storage";
+import { apiGetReviews, apiCreateReview, type ApiReview } from "../utils/api";
 
 interface ProductModalProps {
   product: Product;
@@ -31,7 +32,7 @@ function StarSelector({ value, onChange }: { value: number; onChange: (v: number
   );
 }
 
-function ReviewCard({ review }: { review: Review }) {
+function ReviewCard({ review }: { review: ApiReview }) {
   const initials = review.customerName.split(" ").map((w) => w[0]).join("").slice(0, 2).toUpperCase();
   const dateFormatted = new Date(review.dateAdded).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
   return (
@@ -61,21 +62,25 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
     `Halo ANTARA AROMA, saya tertarik dengan produk *${product.name}* (SKU: ${product.sku}). Bisa minta info harga dan sampel?`
   );
 
-  const [approvedReviews, setApprovedReviews] = useState<Review[]>([]);
+  const [approvedReviews, setApprovedReviews] = useState<ApiReview[]>([]);
 
-  function loadReviews() {
-    setApprovedReviews(getApprovedReviewsByProductId(product.id));
+  async function loadReviews() {
+    try {
+      const reviews = await apiGetReviews(product.id);
+      setApprovedReviews(reviews);
+    } catch (err) {
+      console.error("Failed to load reviews:", err);
+    }
   }
 
   useEffect(() => {
     loadReviews();
-    // Refresh otomatis saat review disetujui atau dihapus dari admin
-    window.addEventListener("reviewsUpdated", loadReviews);
-    return () => window.removeEventListener("reviewsUpdated", loadReviews);
+    function onReviewsUpdated() { loadReviews(); }
+    window.addEventListener("reviewsUpdated", onReviewsUpdated);
+    return () => window.removeEventListener("reviewsUpdated", onReviewsUpdated);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [product.id]);
 
-  // Rating dihitung murni dari review approved — tidak memakai angka statis produk
   const ratingSummary = approvedReviews.length > 0
     ? { rating: Math.round((approvedReviews.reduce((s, r) => s + r.rating, 0) / approvedReviews.length) * 10) / 10, reviewCount: approvedReviews.length }
     : { rating: 0, reviewCount: 0 };
@@ -88,23 +93,26 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
   const [submitting, setSubmitting] = useState(false);
   const formRef = useRef<HTMLDivElement>(null);
 
-  function handleSubmitReview() {
+  async function handleSubmitReview() {
     if (!reviewName.trim()) { setFormError("Nama tidak boleh kosong."); return; }
     if (reviewRating === 0) { setFormError("Pilih rating terlebih dahulu."); return; }
     if (!reviewComment.trim() || reviewComment.trim().length < 10) { setFormError("Komentar minimal 10 karakter."); return; }
     setFormError("");
     setSubmitting(true);
-    setTimeout(() => {
-      addReview({
-        productId: product.id, productName: product.name,
-        customerName: reviewName.trim(), rating: reviewRating,
-        comment: reviewComment.trim(), status: "pending",
-        dateAdded: new Date().toISOString(),
+    try {
+      await apiCreateReview({
+        product_id: product.id,
+        customer_name: reviewName.trim(),
+        rating: reviewRating,
+        comment: reviewComment.trim(),
       });
       setSubmitSuccess(true);
-      setSubmitting(false);
       setReviewName(""); setReviewRating(0); setReviewComment("");
-    }, 500);
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : "Gagal mengirim ulasan. Coba lagi.");
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -142,7 +150,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
             <h2 className="text-gray-900 text-xl mb-2" style={{ fontFamily: "Montserrat, sans-serif", fontWeight: 700 }}>
               {product.name}
             </h2>
-            {/* Rating — computed */}
             <div className="flex items-center gap-2 mb-4">
               <div className="flex gap-0.5">
                 {Array.from({ length: 5 }).map((_, i) => (
@@ -199,7 +206,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
             )}
           </div>
 
-          {/* Review list */}
           {approvedReviews.length === 0 ? (
             <div className="text-center py-8 mb-6 rounded-2xl bg-gray-50">
               <UserCircle2 size={36} className="mx-auto mb-2 text-gray-300" />
@@ -208,7 +214,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
             </div>
           ) : (
             <div className="mb-8">
-              {/* Rating summary */}
               <div className="flex items-center gap-5 p-4 rounded-2xl mb-4"
                 style={{ background: `${TEAL}0d`, border: `1px solid ${TEAL}20` }}>
                 <div className="text-center flex-shrink-0">
@@ -240,7 +245,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
                   })}
                 </div>
               </div>
-              {/* Review cards */}
               <div>
                 {approvedReviews.slice().sort((a, b) => new Date(b.dateAdded).getTime() - new Date(a.dateAdded).getTime())
                   .map((r) => <ReviewCard key={r.id} review={r} />)}
@@ -274,7 +278,6 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {/* Nama */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">Nama Kamu *</label>
                     <input type="text" value={reviewName} onChange={(e) => setReviewName(e.target.value)}
@@ -284,12 +287,10 @@ export function ProductModal({ product, onClose }: ProductModalProps) {
                       onFocus={(e) => (e.currentTarget.style.borderColor = `${TEAL}80`)}
                       onBlur={(e) => (e.currentTarget.style.borderColor = reviewName ? `${TEAL}60` : "#e5e7eb")} />
                   </div>
-                  {/* Rating */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">Rating *</label>
                     <StarSelector value={reviewRating} onChange={setReviewRating} />
                   </div>
-                  {/* Komentar */}
                   <div>
                     <label className="block text-xs font-medium text-gray-600 mb-1.5">Komentar *</label>
                     <textarea value={reviewComment} onChange={(e) => setReviewComment(e.target.value)}
