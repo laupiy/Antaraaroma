@@ -148,18 +148,42 @@ export function AdminDashboardPage() {
   async function handleSave() {
     if (!form.name.trim()) { toast("error","Nama produk tidak boleh kosong."); return; }
     if (!form.sku.trim()) { toast("error","Kode produk (SKU) tidak boleh kosong."); return; }
-    const productData: Omit<Product,"id"> = {
-      name:form.name.trim(), category:form.category as Exclude<Category,"All">,
-      sku:form.sku.trim(), material:form.material.trim(),
-      capacity:form.capacityStr.split(",").map((s)=>s.trim()).filter(Boolean),
-      finish:form.finish.trim(), moq:form.moq.trim(),
-      badge:form.badge.trim()||undefined, badgeColor:form.badge.trim()?form.badgeColor:undefined,
-      isNew:form.isNew, isPopular:form.isPopular,
-      rating:editingProduct?.rating??4.5, reviewCount:editingProduct?.reviewCount??0,
-      image:form.image, description:form.description.trim(),
-      tags:form.tagsStr.split(",").map((s)=>s.trim()).filter(Boolean),
-      dateAdded:form.dateAdded,
-    };
+const productData = {
+  name: form.name.trim(),
+  category: form.category as Exclude<Category, "All">,
+
+  sku: form.sku.trim(),
+  product_code: form.sku.trim(),
+
+  material: form.material.trim(),
+  capacity: form.capacityStr.split(",").map((s) => s.trim()).filter(Boolean),
+  finish: form.finish.trim(),
+
+  moq: form.moq.trim(),
+  minimum_order: form.moq.trim(),
+
+  badge: form.badge.trim() || undefined,
+  badgeColor: form.badge.trim() ? form.badgeColor : undefined,
+  badge_color: form.badge.trim() ? form.badgeColor : undefined,
+
+  isNew: form.isNew,
+  is_new: form.isNew,
+
+  isPopular: form.isPopular,
+  is_popular: form.isPopular,
+
+  rating: editingProduct?.rating ?? 4.5,
+  reviewCount: editingProduct?.reviewCount ?? 0,
+
+  image: form.image,
+  image_url: form.image,
+
+  description: form.description.trim(),
+  tags: form.tagsStr.split(",").map((s) => s.trim()).filter(Boolean),
+
+  dateAdded: form.dateAdded,
+  date_added: form.dateAdded,
+};
     try {
       if (editingProduct) {
         await apiUpdateProduct(editingProduct.id, productData);
