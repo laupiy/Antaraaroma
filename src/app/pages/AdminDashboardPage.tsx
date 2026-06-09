@@ -10,6 +10,7 @@ import {
   isAdminLoggedIn, removeToken,
   apiGetProducts, apiCreateProduct, apiUpdateProduct, apiDeleteProduct,
   apiGetReviewsAdmin, apiApproveReview, apiRejectReview, apiDeleteReview,
+  apiUploadImage,
   type ApiProduct, type ApiReview,
 } from "../utils/api";
 import type { Category } from "../data/products";
@@ -26,9 +27,6 @@ const BADGE_PRESETS = [
 ];
 const ALLOWED_TYPES = ["image/jpeg","image/jpg","image/png","image/webp"];
 const MAX_FILE_SIZE_MB = 5;
-const COMPRESS_THRESHOLD_MB = 1;
-const COMPRESS_MAX_DIM = 1200;
-const COMPRESS_QUALITY = 0.82;
 
 type Product = ApiProduct;
 type Review = ApiReview;
@@ -44,37 +42,6 @@ const EMPTY_FORM: FormData = {
 };
 
 interface ToastMsg { id:number; type:"success"|"error"|"info"; text:string; }
-
-// ─── Image compression ────────────────────────────────────────────────────────
-
-function compressImage(file: File): Promise<string> {
-  return new Promise((resolve,reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      if (file.size/1024/1024 <= COMPRESS_THRESHOLD_MB) { resolve(dataUrl); return; }
-      const img = new Image();
-      img.onload = () => {
-        let {width,height} = img;
-        if (width>COMPRESS_MAX_DIM||height>COMPRESS_MAX_DIM) {
-          if (width>height) { height=Math.round(height*COMPRESS_MAX_DIM/width); width=COMPRESS_MAX_DIM; }
-          else { width=Math.round(width*COMPRESS_MAX_DIM/height); height=COMPRESS_MAX_DIM; }
-        }
-        const canvas = document.createElement("canvas");
-        canvas.width=width; canvas.height=height;
-        const ctx = canvas.getContext("2d");
-        if (!ctx) { resolve(dataUrl); return; }
-        ctx.drawImage(img,0,0,width,height);
-        const out = file.type==="image/png"?"image/png":"image/jpeg";
-        resolve(canvas.toDataURL(out,COMPRESS_QUALITY));
-      };
-      img.onerror = () => resolve(dataUrl);
-      img.src = dataUrl;
-    };
-    reader.onerror = () => reject(new Error("Gagal membaca file gambar."));
-    reader.readAsDataURL(file);
-  });
-}
 
 // ─── Colors ───────────────────────────────────────────────────────────────────
 
@@ -137,13 +104,17 @@ export function AdminDashboardPage() {
     if (file.size/1024/1024 > MAX_FILE_SIZE_MB) { toast("error",`Ukuran file terlalu besar (maks. ${MAX_FILE_SIZE_MB}MB).`); return; }
     setUploadLoading(true);
     try {
-      const base64 = await compressImage(file);
-      setForm((prev) => ({...prev,image:base64}));
-      setImagePreview(base64);
-      if (file.size/1024/1024 > COMPRESS_THRESHOLD_MB) toast("info","Gambar dikompresi otomatis agar lebih ringan.");
-      else toast("success","Gambar berhasil diunggah.");
-    } catch { toast("error","Gagal memproses gambar. Coba lagi."); }
-    finally { setUploadLoading(false); }
+      const localPreview = URL.createObjectURL(file);
+      setImagePreview(localPreview);
+      const { image_url } = await apiUploadImage(file);
+      setForm((prev) => ({ ...prev, image: image_url }));
+      setImagePreview(image_url);
+      URL.revokeObjectURL(localPreview);
+      toast("success", "Gambar berhasil diunggah ke Cloudinary.");
+    } catch (err) {
+      setImagePreview("");
+      toast("error", err instanceof Error ? err.message : "Gagal mengunggah gambar. Coba lagi.");
+    } finally { setUploadLoading(false); }
   }
 
   function handleFileInputChange(e: React.ChangeEvent<HTMLInputElement>) {

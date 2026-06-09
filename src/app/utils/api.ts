@@ -123,6 +123,27 @@ export async function apiDeleteProduct(id: number): Promise<void> {
   });
 }
 
+// ─── Upload Gambar ke Cloudinary ──────────────────────────────────────────────
+export async function apiUploadImage(file: File): Promise<{ image_url: string }> {
+  const token = getToken();
+  const formData = new FormData();
+  formData.append("image", file);
+
+  const res = await fetch(`${BASE_URL}/api/upload`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: formData,
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ message: "Gagal upload gambar." }));
+    throw new Error(err.message || "Gagal upload gambar.");
+  }
+  return res.json();
+}
+
+
+
 // ─── Categories ────────────────────────────────────────────────────────────────
 export interface ApiCategory {
   id: number;
